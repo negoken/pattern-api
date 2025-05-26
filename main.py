@@ -4,6 +4,7 @@ import re
 from typing import List, Tuple
 from fastapi import FastAPI
 from dotenv import load_dotenv
+from contextlib import asynccontextmanager
 
 load_dotenv()
 
@@ -22,13 +23,8 @@ PATTERN_FILES = {
 LOCAL_SAVE_DIR = "ftp_patterns"
 os.makedirs(LOCAL_SAVE_DIR, exist_ok=True)
 
-app = FastAPI()
-PATTERN_MODELS = {}
-
-@app.on_event("startup")
-def load_patterns():
-    global PATTERN_MODELS
-    PATTERN_MODELS = {}
+def download_patterns():
+    models = {}
     with ftplib.FTP() as ftp:
         ftp.connect(FTP_HOST, FTP_PORT)
         ftp.login(FTP_USER, FTP_PASS)
@@ -38,8 +34,10 @@ def load_patterns():
             with open(local_path, "wb") as f:
                 ftp.retrbinary(f"RETR " + fname, f.write)
             with open(local_path, "r", encoding="utf-8") as f:
-                PATTERN_MODELS[key] = f.read()
+                models[key] = f.read()
+    return models
 
+# Helper methods
 def classify_score(score: str) -> str:
     try:
         goals = list(map(int, score.split('-')))
@@ -112,9 +110,18 @@ def format_results(method_a, method_b, pattern_name, last_label):
 
     return "\n".join(result)
 
+# LIFESPAN INIT
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    global PATTERN_MODELS
+    PATTERN_MODELS = download_patterns()
+    yield  # Application is running
+
+app = FastAPI(lifespan=lifespan)
+
 @app.get("/")
 def root():
-    return {"message": "API is up and running. Use /predict endpoint."}
+    return {"message": "API OK - Use /predict"}
 
 @app.get("/predict")
 def predict(p: str = "p1", t1: str = "spa", t2: str = "ita", t3: str = "por"):
