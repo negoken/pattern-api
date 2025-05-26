@@ -1,8 +1,8 @@
-from fastapi import FastAPI
-from typing import List, Tuple
 import os
 import ftplib
 import re
+from typing import List, Tuple
+from fastapi import FastAPI
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -25,8 +25,10 @@ os.makedirs(LOCAL_SAVE_DIR, exist_ok=True)
 app = FastAPI()
 PATTERN_MODELS = {}
 
-def download_patterns():
-    models = {}
+@app.on_event("startup")
+def load_patterns():
+    global PATTERN_MODELS
+    PATTERN_MODELS = {}
     with ftplib.FTP() as ftp:
         ftp.connect(FTP_HOST, FTP_PORT)
         ftp.login(FTP_USER, FTP_PASS)
@@ -36,8 +38,7 @@ def download_patterns():
             with open(local_path, "wb") as f:
                 ftp.retrbinary(f"RETR " + fname, f.write)
             with open(local_path, "r", encoding="utf-8") as f:
-                models[key] = f.read()
-    return models
+                PATTERN_MODELS[key] = f.read()
 
 def classify_score(score: str) -> str:
     try:
@@ -111,14 +112,9 @@ def format_results(method_a, method_b, pattern_name, last_label):
 
     return "\n".join(result)
 
-@app.on_event("startup")
-def startup_event():
-    global PATTERN_MODELS
-    PATTERN_MODELS = download_patterns()
-
 @app.get("/")
 def root():
-    return {"message": "✅ API is up and running. Use /predict endpoint."}
+    return {"message": "API is up and running. Use /predict endpoint."}
 
 @app.get("/predict")
 def predict(p: str = "p1", t1: str = "spa", t2: str = "ita", t3: str = "por"):
