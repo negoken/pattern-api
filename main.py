@@ -1,8 +1,8 @@
+from fastapi import FastAPI
+from typing import List, Tuple
 import os
 import ftplib
 import re
-from typing import List, Tuple
-from fastapi import FastAPI
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -21,6 +21,9 @@ PATTERN_FILES = {
 
 LOCAL_SAVE_DIR = "ftp_patterns"
 os.makedirs(LOCAL_SAVE_DIR, exist_ok=True)
+
+app = FastAPI()
+PATTERN_MODELS = {}
 
 def download_patterns():
     models = {}
@@ -108,12 +111,14 @@ def format_results(method_a, method_b, pattern_name, last_label):
 
     return "\n".join(result)
 
-app = FastAPI()
-PATTERN_MODELS = download_patterns()
+@app.on_event("startup")
+def startup_event():
+    global PATTERN_MODELS
+    PATTERN_MODELS = download_patterns()
 
 @app.get("/")
 def root():
-    return {"message": "API OK - Use /predict"}
+    return {"message": "✅ API is up and running. Use /predict endpoint."}
 
 @app.get("/predict")
 def predict(p: str = "p1", t1: str = "spa", t2: str = "ita", t3: str = "por"):
